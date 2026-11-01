@@ -1,0 +1,477 @@
+# Tasks: 房內聊天室
+
+**Feature Directory**: `specs/002-room-chat`
+**Input Documents**: `spec.md`, `test-plan.md`, `research.md`, `techstack.md`, `plan.md`, `analysis/openapi.yaml`, `analysis/frontend.md`, `analysis/schema.dbml`
+
+---
+
+## Phase 1: Setup
+
+補齊本功能的測試工具設定，讓後續每張案例卡的紅燈都能直接執行。
+
+### 共用環境
+
+- [ ] T001 [P] `環境` 加入負載量測的依賴與 pytest marker 於 `backend/pyproject.toml`
+  - Must Read:
+    - `research.md` -> `R4. 測試與品質工具 › 負載量測`
+    - `techstack.md` -> `Dev Dependencies`
+  - Optional:
+    - `test-plan.md` -> `SL-035`
+  - Why: 負載量測要和一般 API E2E 分開執行，沒有 marker 會讓每次全量測試都跑 60 秒的負載。
+- [ ] T002 [P] `環境` 新增 NFR 量測的 Playwright 專案與畫面寬度設定於 `frontend/playwright.config.ts`
+  - Must Read:
+    - `research.md` -> `R4. 測試與品質工具 › E2E`, `R4. 測試與品質工具 › 畫面量測`
+    - `test-plan.md` -> `UI-FX-SERVER`, `SL-037`
+  - Optional:
+    - `analysis/frontend.md` -> `前端共通介面 › 響應式`
+  - Why: 一般 E2E 以 Fixture 預設的 1440 px 執行，寬度相容性只由 NFR 量測專案以多種寬度驗證，兩者混在一起會讓每張卡都重跑三種寬度。
+
+**Checkpoint**: 後端測試指令與前端 E2E 指令都能執行且沒有失敗；NFR 量測專案能被單獨挑選執行
+
+---
+
+## Phase 2: User Story 1 - 同房玩家在準備與對戰時即時傳送文字訊息 (P1)
+
+- [ ] T003 [US1] `/tdd 紅燈` 撰寫 SL-001 的測試於 `frontend/e2e/chat.spec.ts`、`frontend/e2e/support.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-001`, `UI-FX-SERVER`, `UI-FX-UNIQUE-CODE`, `UI-FX-GUEST`, `UI-FX-HOST-WAITING`, `UI-FX-TWO-IN-ROOM`
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+  - Optional:
+    - `spec.md` -> `使用者故事 1 › Acceptance Scenarios 1`
+  - Why: 這是第一張 UI seam 的卡，啟動時限與預設寬度在 Fixture 定下，訊息項的可見文字格式與 2 秒的起算點定在案例卡，自訂斷言會讓之後每張 UI 卡的 oracle 對不上。
+- [ ] T004 [US1] `/tdd 綠燈` 實作 SL-001 的行為於 `backend/app/models.py`、`backend/app/chat.py`、`backend/app/main.py`、`frontend/lib/api.ts`、`frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`、`frontend/app/rooms/[id]/room.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-001`
+    - `analysis/openapi.yaml` -> `/rooms/{id}/messages`, `schemas.ChatMessage`, `schemas.ChatMessageList`
+    - `analysis/schema.dbml` -> `Table chat_messages`
+    - `research.md` -> `R1. 聊天同步方式`
+  - Optional:
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+  - Why: 同步方式已定案為 1 秒輪詢，自行改用推送通道會偏離所有以 2 秒為門檻的案例；發送者標示要依檢視者推導，不能在保存時寫死。
+- [ ] T005 [US1] `/tdd 紅燈` 撰寫 SL-002 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-002`, `UI-FX-TWO-IN-ROOM`
+  - Optional:
+    - `analysis/frontend.md` -> `前端共通介面 › 四態`
+  - Why: 空狀態的提示文字是 spec 明文，必須逐字斷言，否則和載入中的骨架無法區分。
+- [ ] T006 [US1] `/tdd 綠燈` 實作 SL-002 的行為於 `frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-002`
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`, `前端共通介面 › 四態`
+  - Optional:
+    - 無
+  - Why: 四態的判定順序在前端共通介面已定案，空列表被當成載入中會讓提示永遠不出現。
+- [ ] T007 [US1] `/tdd 紅燈` 撰寫 SL-003 的測試於 `backend/tests/test_chat.py`、`backend/tests/helpers.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-003`, `API-FX-SERVER`, `API-FX-PLAYER`, `API-FX-WAITING-ROOM`, `API-FX-TWO-IN-ROOM`, `API-FX-PLAYING`, `API-FX-MESSAGE-SENT`
+    - `analysis/openapi.yaml` -> `schemas.ChatMessageList`
+  - Optional:
+    - `research.md` -> `R4. 測試與品質工具 › API E2E`
+  - Why: 這是第一張 API seam 的卡，helper 的簽名在這裡定下，之後的 API 卡都依這組 helper 建立前置狀態。
+- [ ] T008 [US1] `/tdd 紅燈` 撰寫 SL-004 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-004`, `API-FX-PLAYING`
+  - Optional:
+    - `spec.md` -> `使用者故事 1`, `FR-005`
+  - Why: 訊息內容刻意使用對手的答案，換成一般文字就抓不到訊息被當成猜測處理的錯誤。
+- [ ] T009 [US1] `/tdd 紅燈` 撰寫 SL-005 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-005`, `API-FX-SERVER`, `API-FX-PLAYING`
+  - Optional:
+    - `spec.md` -> `使用者故事 1 › Acceptance Scenarios 3`
+  - Why: 短時限與兩個等待時間點是讓回合延長可被觀察的唯一設定，改動任一數值都會讓錯誤實作也通過。
+- [ ] T010 [US1] `/tdd 紅燈` 撰寫 SL-006 的測試於 `frontend/e2e/chat.spec.ts`、`frontend/e2e/support.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-006`, `UI-FX-PLAYING`
+  - Optional:
+    - 無
+  - Why: 輪次提示與送出猜測按鈕是必須維持不變的觀察點，漏寫就測不到對戰中聊天室被停用。
+- [ ] T011 [US1] `/tdd 紅燈` 撰寫 SL-007 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-007`, `API-FX-TWO-IN-ROOM`
+    - `analysis/openapi.yaml` -> `/rooms/{id}/messages`, `schemas.Error`
+  - Optional:
+    - `spec.md` -> `使用者故事 1`, `FR-003`
+  - Why: 三個參數各自對應不同的拒絕原因文字，只測一種會漏掉去除空白的順序錯誤。
+- [ ] T012 [US1] `/tdd 綠燈` 實作 SL-007 的行為於 `backend/app/chat_rules.py`、`backend/app/chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-007`
+    - `research.md` -> `R3. 字元數計算`
+    - `analysis/openapi.yaml` -> `schemas.Error`
+  - Optional:
+    - `spec.md` -> `FR-003`
+  - Why: 長度以 code point 計算且在去除空白之後驗證是 research 的決策，用語言內建的字串長度會在 emoji 上算錯。
+- [ ] T013 [US1] `/tdd 紅燈` 撰寫 SL-008 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-008`, `UI-FX-TWO-IN-ROOM`
+  - Optional:
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+  - Why: 雙方的空狀態提示是必須維持不變的觀察點，用來抓樂觀加入後沒有撤下的錯誤。
+- [ ] T014 [US1] `/tdd 綠燈` 實作 SL-008 的行為於 `frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-008`
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+    - `analysis/openapi.yaml` -> `schemas.Error`
+  - Optional:
+    - 無
+  - Why: 畫面顯示的原因要直接取自後端回應，前端另寫一套文案會和後端的拒絕原因分歧。
+- [ ] T015 [US1] `/tdd 紅燈` 撰寫 SL-009 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-009`, `API-FX-TWO-IN-ROOM`
+  - Optional:
+    - `spec.md` -> `FR-003`, `NFR-005`
+  - Why: 中文與 emoji 兩組參數分別抓位元組計數與資料表編碼兩種錯誤，少一組就少抓一種。
+- [ ] T016 [US1] `/tdd 綠燈` 實作 SL-009 的行為於 `backend/app/chat_rules.py`、`backend/app/models.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-009`
+    - `research.md` -> `R3. 字元數計算`
+    - `analysis/schema.dbml` -> `Table chat_messages.content`
+  - Optional:
+    - `techstack.md` -> `執行環境`
+  - Why: 內容欄位的編碼與長度定義在 dbml，欄位用錯編碼時 emoji 會在資料庫層失敗而不是在驗證層。
+- [ ] T017 [US1] `/tdd 紅燈` 撰寫 SL-010 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-010`, `API-FX-WAITING-ROOM`
+  - Optional:
+    - `spec.md` -> `使用者故事 1`, `FR-004`
+  - Why: 拒絕原因要逐字等於 spec 的提示文字，前端停用狀態也引用同一段文字。
+- [ ] T018 [US1] `/tdd 綠燈` 實作 SL-010 的行為於 `backend/app/chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-010`
+    - `analysis/openapi.yaml` -> `/rooms/{id}/messages`, `schemas.Error`
+  - Optional:
+    - 無
+  - Why: 等待加入回 409 而不是 403，是 openapi 區分狀態衝突與權限不足的決策。
+- [ ] T019 [US1] `/tdd 紅燈` 撰寫 SL-011 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-011`, `UI-FX-HOST-WAITING`
+  - Optional:
+    - 無
+  - Why: 輸入欄與送出按鈕都要斷言停用，只斷言其一會讓另一個仍可觸發送出。
+- [ ] T020 [US1] `/tdd 綠燈` 實作 SL-011 的行為於 `frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-011`
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+  - Optional:
+    - 無
+  - Why: 停用要依房間狀態事先決定，等後端回 409 才停用會讓使用者先送出一次失敗的訊息。
+- [ ] T021 [US1] `/tdd 紅燈` 撰寫 SL-012 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-012`, `API-FX-TWO-IN-ROOM`, `API-FX-MESSAGE-SENT`
+  - Optional:
+    - `spec.md` -> `NFR-003`
+  - Why: 除了 status code 還要斷言回應本文不含訊息內容，否則回 404 但夾帶內容的錯誤會通過。
+- [ ] T022 [US1] `/tdd 綠燈` 實作 SL-012 的行為於 `backend/app/chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-012`
+    - `analysis/openapi.yaml` -> `/rooms/{id}/messages`
+  - Optional:
+    - `spec.md` -> `NFR-003`
+  - Why: 非成員回 404 而非 403 是不洩漏房間存在性的決策，回錯狀態碼就違反 NFR-003。
+- [ ] T023 [US1] `/tdd 紅燈` 撰寫 SL-013 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-013`, `API-FX-TWO-IN-ROOM`
+  - Optional:
+    - 無
+  - Why: 必須維持不變的觀察點是房間訊息數量仍為 0，只看 status code 測不到先寫入再回錯誤的實作。
+- [ ] T024 [US1] `/tdd 綠燈` 實作 SL-013 的行為於 `backend/app/chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-013`
+    - `analysis/openapi.yaml` -> `/rooms/{id}/messages`
+  - Optional:
+    - 無
+  - Why: 送出與讀取要共用同一套成員判定，各寫一套會在之後換挑戰者時出現不一致。
+- [ ] T025 [US1] `/tdd 紅燈` 撰寫 SL-014 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-014`, `API-FX-TWO-IN-ROOM`, `API-FX-MESSAGE-SENT`
+  - Optional:
+    - 無
+  - Why: 兩個房間都要先有訊息，否則漏掉房間條件的查詢也會回傳正確的結果。
+- [ ] T026 [US1] `/tdd 綠燈` 實作 SL-014 的行為於 `backend/app/chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-014`
+    - `analysis/schema.dbml` -> `Table chat_messages`
+  - Optional:
+    - 無
+  - Why: 查詢條件要對齊 dbml 定義的房間欄位與索引，之後的負載量測依賴同一個索引。
+- [ ] T027 [US1] `/tdd 紅燈` 撰寫 SL-015 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-015`, `API-FX-TWO-IN-ROOM`
+    - `research.md` -> `R4. 測試與品質工具 › API E2E`
+  - Optional:
+    - `spec.md` -> `NFR-002`
+  - Why: 20 個執行緒要以 barrier 同步才是真正的同時送出，依序送出永遠測不到 seq 衝突。
+- [ ] T028 [US1] `/tdd 綠燈` 實作 SL-015 的行為於 `backend/app/chat.py`、`backend/app/models.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-015`
+    - `research.md` -> `R2. 訊息順序與併發`
+    - `analysis/schema.dbml` -> `Table chat_messages.seq`
+  - Optional:
+    - 無
+  - Why: seq 在房間列鎖內配發並以唯一鍵兜底是 research 的決策，改用全表鎖會在全域 NFR 的負載量測中失敗。
+- [ ] T029 [US1] `/tdd 紅燈` 撰寫 SL-016 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-016`, `API-FX-TWO-IN-ROOM`
+  - Optional:
+    - `research.md` -> `R2. 訊息順序與併發`
+  - Why: 兩房的 seq 都要從 1 連號，用來抓全平台共用計數器這種只在多房間時才出現的錯誤。
+- [ ] T030 [US1] `/tdd 紅燈` 撰寫 SL-017 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-017`, `UI-FX-TWO-IN-ROOM`
+  - Optional:
+    - `spec.md` -> `NFR-004`
+  - Why: dialog 事件數量是確認腳本沒有執行的唯一觀察點，只比對文字無法證明沒有執行。
+- [ ] T031 [US1] `/tdd 紅燈` 撰寫 SL-018 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-018`, `UI-FX-TWO-IN-ROOM`
+  - Optional:
+    - `spec.md` -> `NFR-005`
+  - Why: 斷言要在對手畫面進行，才能同時抓到後端正規化與前端截斷兩種錯誤。
+- [ ] T032 [US1] `/tdd 紅燈` 撰寫 SL-019 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-019`, `API-FX-TWO-IN-ROOM`, `API-FX-MESSAGE-SENT`
+  - Optional:
+    - `analysis/openapi.yaml` -> `/rooms/{id}/messages`
+  - Why: 期望值是 404 或 405 的集合，寫死其中一個會讓框架預設行為的差異造成誤判。
+- [ ] T033 [US1] `/tdd 紅燈` 撰寫 SL-020 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-020`, `UI-FX-TWO-IN-ROOM`, `UI-FX-MESSAGE-SENT`
+  - Optional:
+    - 無
+  - Why: 右鍵點擊是案例卡指定的操作，只讀取靜態畫面會漏掉右鍵選單裡的刪除操作。
+- [ ] T034 [US1] `/tdd 紅燈` 撰寫 SL-021 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-021`, `UI-FX-TWO-IN-ROOM`
+  - Optional:
+    - `research.md` -> `R4. 測試與品質工具 › E2E`
+  - Why: 連線失敗只能在網路層中斷請求來模擬，mock 前端狀態會違反 UI seam 的外部依賴策略。
+- [ ] T035 [US1] `/tdd 綠燈` 實作 SL-021 的行為於 `frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-021`
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`, `前端共通介面 › 四態`
+  - Optional:
+    - 無
+  - Why: 輸入欄要在送出成功後才清空，這個時機定在前端共通介面的四態規範裡。
+- [ ] T036 [US1] `/tdd 紅燈` 撰寫 SL-022 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-022`, `UI-FX-TWO-IN-ROOM`
+  - Optional:
+    - 無
+  - Why: 2 秒的起算點是按下重試的時刻，不是原本送出的時刻，起算點錯了會讓延遲的重送也通過。
+- [ ] T037 [US1] `/tdd 綠燈` 實作 SL-022 的行為於 `frontend/lib/use-messages.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-022`
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+  - Optional:
+    - 無
+  - Why: 重試只重送失敗的那一則，重新載入整個房間會清掉草稿也不會送出訊息。
+- [ ] T038 [US1] `/tdd 紅燈` 撰寫 SL-023 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-023`, `UI-FX-TWO-IN-ROOM`
+  - Optional:
+    - 無
+  - Why: 請求要延遲 1.5 秒，才有時間在回應抵達前觀察到停用狀態與第二次點擊。
+- [ ] T039 [US1] `/tdd 綠燈` 實作 SL-023 的行為於 `frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-023`
+    - `analysis/frontend.md` -> `前端共通介面 › 四態`
+  - Optional:
+    - 無
+  - Why: 送出中的狀態要由同一個 hook 管理，元件各自記錄會讓重試與一般送出的停用狀態不同步。
+- [ ] T040 [US1] `/tdd 紅燈` 撰寫 SL-024 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-024`, `UI-FX-TWO-IN-ROOM`, `UI-FX-MESSAGE-SENT`
+  - Optional:
+    - 無
+  - Why: 要先送出 29 則讓列表超過可視高度，訊息太少時不捲動也會通過。
+- [ ] T041 [US1] `/tdd 綠燈` 實作 SL-024 的行為於 `frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-024`
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+  - Optional:
+    - 無
+  - Why: 捲動要在新訊息渲染之後觸發，在輪詢回應時就捲動會停在倒數第二則。
+- [ ] T042 [US1] `/tdd 紅燈` 撰寫 SL-025 的測試於 `frontend/e2e/chat-nfr.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-025`, `UI-FX-TWO-IN-ROOM`
+    - `research.md` -> `R4. 測試與品質工具 › 畫面量測`
+  - Optional:
+    - `spec.md` -> `NFR-001`
+  - Why: 每則的量測起訖點都定在案例卡，從按下按鈕起算會把送出本身的時間也算進同步延遲。
+- [ ] T043 [US1] `/tdd 綠燈` 實作 SL-025 的行為於 `frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-025`
+    - `research.md` -> `R1. 聊天同步方式`
+  - Optional:
+    - 無
+  - Why: 調校只能在已定案的輪詢方式內進行，改成其他同步機制屬於設計變更，必須先回報上游。
+- [ ] T044 [US1] `/tdd 重構` 整理 User Story 1 的程式碼於 `backend/app/chat.py`、`backend/app/chat_rules.py`、`backend/app/models.py`、`frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`、`backend/tests/helpers.py`、`frontend/e2e/support.ts`
+  - Must Read:
+    - `test-plan.md` -> `User Story 1`
+    - `plan.md` -> `Source Code (repository root)`
+  - Optional:
+    - `research.md` -> `R2. 訊息順序與併發`
+  - Why: 檔案職責以 plan.md 的 Source Code 樹為準，重構時把驗證邏輯搬離 chat_rules 會讓後續任務找不到對應的落點。
+
+**Checkpoint**: 本 phase 測試全綠；可完成 `spec.md` 使用者故事 1 的 Independent Test；MVP 可展示
+
+---
+
+## Phase 3: User Story 2 - 聊天紀錄延續：重新整理、換挑戰者與賽後檢視 (P2)
+
+- [ ] T045 [US2] `/tdd 紅燈` 撰寫 SL-027 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-027`, `UI-FX-TWO-IN-ROOM`, `UI-FX-MESSAGE-SENT`, `UI-FX-GUEST`
+  - Optional:
+    - `spec.md` -> `使用者故事 2 › Acceptance Scenarios 2`
+  - Why: 同時斷言 C 與 A 兩個視角，才能抓到只有新挑戰者看到正確標示的錯誤。
+- [ ] T046 [US2] `/tdd 綠燈` 實作 SL-027 的行為於 `backend/app/chat.py`、`frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-027`
+    - `analysis/openapi.yaml` -> `schemas.ChatMessage`
+    - `analysis/schema.dbml` -> `Table chat_messages.sender_id`
+  - Optional:
+    - `spec.md` -> `FR-009`
+  - Why: 發送者標示要在讀取時依目前成員推導，保存時寫死角色會讓換人後的標示錯誤。
+- [ ] T047 [US2] `/tdd 紅燈` 撰寫 SL-028 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-028`, `API-FX-TWO-IN-ROOM`, `API-FX-PLAYER`, `API-FX-MESSAGE-SENT`
+  - Optional:
+    - `spec.md` -> `NFR-003`
+  - Why: 新挑戰者要在 B 離開之後送出訊息，否則無法證明 B 看不到離開後的對話。
+- [ ] T048 [US2] `/tdd 紅燈` 撰寫 SL-029 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-029`, `API-FX-TWO-IN-ROOM`, `API-FX-MESSAGE-SENT`
+  - Optional:
+    - 無
+  - Why: 必須維持不變的觀察點是房間紀錄只有原本那一則，用來抓以歷史發送者判斷成員的錯誤。
+- [ ] T049 [US2] `/tdd 紅燈` 撰寫 SL-030 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-030`, `API-FX-PLAYING`, `API-FX-FINISHED`, `API-FX-MESSAGE-SENT`
+  - Optional:
+    - `spec.md` -> `使用者故事 2`, `FR-010`
+  - Why: 拒絕原因與等待加入時不同，兩者共用同一段文字會讓前端無法區分兩種停用狀態。
+- [ ] T050 [US2] `/tdd 綠燈` 實作 SL-030 的行為於 `backend/app/chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-030`
+    - `analysis/openapi.yaml` -> `/rooms/{id}/messages`, `schemas.Error`
+  - Optional:
+    - 無
+  - Why: 已關閉的房間仍要允許成員讀取，只把關閉狀態加進讀寫共用的檢查會連讀取一起擋掉。
+- [ ] T051 [US2] `/tdd 紅燈` 撰寫 SL-031 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-031`, `UI-FX-PLAYING`, `UI-FX-MESSAGE-SENT`
+  - Optional:
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+  - Why: 受測操作是猜中而關房，不是直接進入結算畫面，這樣才測得到畫面切換時聊天室是否被替換掉。
+- [ ] T052 [US2] `/tdd 綠燈` 實作 SL-031 的行為於 `frontend/app/rooms/[id]/chat.tsx`、`frontend/app/rooms/[id]/room.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-031`
+    - `analysis/frontend.md` -> `畫面 › 房間 › 聊天室`
+  - Optional:
+    - 無
+  - Why: 結算畫面與對局畫面共用房間頁版面，把聊天室放在對局區塊內會隨結算一起消失。
+- [ ] T053 [US2] `/tdd 紅燈` 撰寫 SL-032 的測試於 `backend/tests/test_chat.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-032`, `API-FX-SERVER`, `API-FX-TWO-IN-ROOM`, `API-FX-MESSAGE-SENT`
+  - Optional:
+    - `spec.md` -> `FR-008`
+  - Why: 第二個後端實例要共用同一個測試資料庫，換成新資料庫就無法證明紀錄有被持久化。
+- [ ] T054 [US2] `/tdd 紅燈` 撰寫 SL-033 的測試於 `frontend/e2e/chat-nfr.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-033`, `UI-FX-TWO-IN-ROOM`, `UI-FX-MESSAGE-SENT`
+    - `research.md` -> `R4. 測試與品質工具 › 畫面量測`
+  - Optional:
+    - `spec.md` -> `NFR-006`, `SC-004`
+  - Why: 量測終點是最後一則訊息可見，以頁面載入完成為終點會漏算紀錄的讀取時間。
+- [ ] T055 [US2] `/tdd 綠燈` 實作 SL-033 的行為於 `frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-033`
+    - `research.md` -> `R1. 聊天同步方式`
+  - Optional:
+    - `analysis/openapi.yaml` -> `schemas.ChatMessageList`
+  - Why: 進房要一次取回全部紀錄再開始輪詢，先等第一次輪詢才顯示會讓還原時間多出一個輪詢週期。
+- [ ] T056 [US2] `/tdd 重構` 整理 User Story 2 的程式碼於 `backend/app/chat.py`、`frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`、`frontend/app/rooms/[id]/room.tsx`
+  - Must Read:
+    - `test-plan.md` -> `User Story 2`
+    - `plan.md` -> `Source Code (repository root)`
+  - Optional:
+    - 無
+  - Why: 本 Phase 在讀寫檢查中新增了關閉與離開兩種狀態，重構時要讓成員與狀態判定仍集中在同一處。
+
+**Checkpoint**: 本 phase 測試全綠；可分別完成 `spec.md` 使用者故事 1 與使用者故事 2 的 Independent Test
+
+---
+
+## Phase 4: 全域 NFR
+
+- [ ] T057 `/tdd 紅燈` 撰寫 SL-035 的測試於 `backend/tests/load/test_chat_load.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-035`, `API-FX-SERVER`, `API-FX-TWO-IN-ROOM`
+    - `research.md` -> `R4. 測試與品質工具 › 負載量測`
+  - Optional:
+    - `spec.md` -> `NFR-007`, `SC-002`
+  - Why: 門檻是 95% 的比例加上零遺失，只量平均延遲會讓少數訊息遺失或嚴重延遲的情況通過。
+- [ ] T058 `/tdd 綠燈` 實作 SL-035 的行為於 `backend/app/chat.py`、`backend/app/models.py`
+  - Must Read:
+    - `test-plan.md` -> `SL-035`
+    - `research.md` -> `R2. 訊息順序與併發`
+    - `analysis/schema.dbml` -> `Table chat_messages`, `Table chat_messages.seq`
+  - Optional:
+    - 無
+  - Why: 鎖的範圍必須維持在單一房間，為了達標放寬成無鎖會讓 SL-015 的併發測試失敗。
+- [ ] T059 `/tdd 紅燈` 撰寫 SL-036 的測試於 `frontend/e2e/chat-nfr.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-036`, `UI-FX-TWO-IN-ROOM`
+  - Optional:
+    - `spec.md` -> `NFR-007`
+  - Why: 500 則訊息要經公開 API 建立而不是逐則在畫面送出，否則前置步驟本身就超過測試時限。
+- [ ] T060 `/tdd 綠燈` 實作 SL-036 的行為於 `frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-036`
+    - `research.md` -> `R1. 聊天同步方式`
+    - `analysis/openapi.yaml` -> `schemas.ChatMessageList`
+  - Optional:
+    - 無
+  - Why: 輪詢回應要只合併新的訊息，整份重繪 500 則是同步延遲超過 2 秒的主因。
+- [ ] T061 `/tdd 紅燈` 撰寫 SL-037 的測試於 `frontend/e2e/chat-nfr.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-037`, `UI-FX-PLAYING`, `UI-FX-MESSAGE-SENT`
+  - Optional:
+    - `analysis/frontend.md` -> `前端共通介面 › 響應式`
+  - Why: 案例卡規定不捲動頁面直接點擊，先捲動再點會讓被聊天室遮擋的按鈕也能通過。
+- [ ] T062 `/tdd 綠燈` 實作 SL-037 的行為於 `frontend/app/rooms/[id]/room.tsx`、`frontend/app/rooms/[id]/chat.tsx`
+  - Must Read:
+    - `test-plan.md` -> `SL-037`
+    - `analysis/frontend.md` -> `前端共通介面 › 響應式`, `畫面 › 房間 › 聊天室`
+  - Optional:
+    - 無
+  - Why: 窄螢幕的版面在前端共通介面已定案，自行改用浮動視窗會遮擋準備與猜測操作。
+- [ ] T063 `/tdd 重構` 整理全域 NFR 的程式碼於 `backend/app/chat.py`、`backend/app/models.py`、`frontend/lib/use-messages.ts`、`frontend/app/rooms/[id]/chat.tsx`、`frontend/app/rooms/[id]/room.tsx`
+  - Must Read:
+    - `test-plan.md` -> `全域 NFR`
+    - `plan.md` -> `Source Code (repository root)`
+  - Optional:
+    - 無
+  - Why: 為了效能加入的快取與合併邏輯容易散落在元件裡，重構時要收斂回 plan.md 指定的 hook 與服務。
+
+**Checkpoint**: 本 phase 的量測全部達標；全部測試全綠
+
+---
+
+## Phase 5: Acceptance Gates
+
+- [ ] T064 `/tdd 紅燈` 撰寫 SL-026 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-026`, `UI-FX-UNIQUE-CODE`, `UI-FX-GUEST`, `UI-FX-HOST-WAITING`
+    - `spec.md` -> `使用者故事 1`
+  - Optional:
+    - 無
+  - Why: 旅程卡承接 Independent Test，要從首頁開房走到雙方互傳，不能直接用雙人同房的 fixture 跳過配對。
+- [ ] T065 `/tdd 紅燈` 撰寫 SL-034 的測試於 `frontend/e2e/chat.spec.ts`
+  - Must Read:
+    - `test-plan.md` -> `SL-034`, `UI-FX-SERVER`, `UI-FX-UNIQUE-CODE`, `UI-FX-GUEST`, `UI-FX-TWO-IN-ROOM`
+    - `spec.md` -> `使用者故事 1`, `使用者故事 2`
+  - Optional:
+    - 無
+  - Why: 旅程橫跨兩個使用者故事，要在全部故事與 NFR 調校都完成後才執行，才能證明後續修改沒有破壞換人與結算時的紀錄延續。
